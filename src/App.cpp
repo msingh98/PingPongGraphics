@@ -14,11 +14,15 @@
 using namespace std;
 using namespace glm;
 
+#include <cmath>
+
+// the magnitude of acceleration due to gravity
+#define g 0.5
 
 App::App(int argc, char** argv) : VRApp(argc, argv) {
     lastTime = VRSystem::getTime();
     ballVel = vec3(0.0, 0.0, 0.0);
-    ballFrame = glm::translate(mat4(1.0), vec3(0, glm::max(10, 0.0)), 50));
+    ballFrame = glm::translate(mat4(1.0), vec3(0, 10, 50));
 }
 
 App::~App()
@@ -149,10 +153,9 @@ void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
     ballFrame = glm::translate(ballFrame, ballVel);
 
     if(ballFrame[3][1] < 2.0) {
-      ballVel = vec3(ballVel[0], -ballVel[1], ballVel[2]);
-      ballFrame[3][1] = 2.1;
+      ballVel = vec3(ballVel[0], -1 * ballVel[1], ballVel[2]);
     } else {
-      ballVel = ballVel + 0.1f * vec3(0, -3, 0);
+      ballVel = ballVel + vec3(0, -1 * g, 0);
     }
 }
 
@@ -237,7 +240,14 @@ void App::onRenderGraphicsScene(const VRGraphicsState &renderState) {
     line->draw(_shader, model);
 
     // Draw the ball
-    ball->draw(_shader, ballFrame);
+    if(ballFrame[3][1] < 2.0) {
+        // draw the ball as if it's above the table if it's really inside of it
+        float depth = 2.0 - ballFrame[3][1];
+        mat4 drawBallFrame = glm::translate(ballFrame, vec3(0, depth, 0));
+        ball->draw(_shader, drawBallFrame);
+    } else {
+        ball->draw(_shader, ballFrame);
+    }
 }
 
 void App::reloadShaders()
