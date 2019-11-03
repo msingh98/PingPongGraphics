@@ -17,12 +17,14 @@ using namespace glm;
 #include <cmath>
 
 // the magnitude of acceleration due to gravity
-#define g 0.5
+#define g 1000
 
 App::App(int argc, char** argv) : VRApp(argc, argv) {
     lastTime = VRSystem::getTime();
-    ballVel = vec3(0.0, 0.0, 0.0);
-    ballFrame = glm::translate(mat4(1.0), vec3(0, 10, 50));
+    ballVel = vec3(0.0, 0.0, 200);
+    ballFrame = glm::translate(mat4(1.0), vec3(0, 40, -130));
+    ballShadowFrame = ballFrame;
+    ballShadowFrame[3][1] = 0;
 }
 
 App::~App()
@@ -33,7 +35,10 @@ App::~App()
 void App::onAnalogChange(const VRAnalogEvent &event) {
     if (event.getName() == "FrameStart") {
         lastTime = curFrameTime;
+        lastPos = paddleFrame;
         curFrameTime = event.getValue();
+        curPos = paddleFrame;
+
     }
 
 }
@@ -51,6 +56,15 @@ void App::onButtonUp(const VRButtonEvent &event) {
     //std::cout<<event.getName()<<std::endl;
 
     if (event.getName() == "KbdSpace_Up") {
+
+      ballVel = vec3(0.0, 0.0, 200);
+      ballFrame = glm::translate(mat4(1.0), vec3(0, 40, -130));
+      ballShadowFrame = ballFrame;
+      ballShadowFrame[3][1] = 0;
+
+
+
+
         // This is where you can "serve" a new ball from the opponent's side of the net
         // toward you when the spacebar is released. I found that a good initial position for the ball is: (0, 30, -130).
         // And, a good initial velocity is (0, 200, 400).  As usual for this program, all
@@ -80,14 +94,39 @@ void App::onCursorMove(const VRCursorEvent &event) {
 
 
         glm::vec3 lastPaddlePos = glm::column(paddleFrame, 3);
-        paddleFrame = glm::translate(mat4(1.0), vec3(xneg1to1 * 100.0, 20.0, glm::max(y0to1 * 137.0 + 20.0, 0.0))) * rotZ;
-
+        paddleFrame = glm::translate(mat4(1.0), vec3(xneg1to1 * 100.0, 20.0, glm::max(y0to1 * 137.0 + 20.0, 0.0)));
+        paddleShadowFrame = paddleFrame;
+        paddleShadowFrame[3][1] = 0;
+        paddleFrame*=rotZ;
         vec3 newPos = glm::column(paddleFrame, 3);
 
         // This is a weighted average.  Update the velocity to be 10% the velocity calculated
         // at the previous frame and 90% the velocity calculated at this frame.
         paddleVel = 0.1f*paddleVel + 0.9f*(newPos - lastPaddlePos);
     }
+}
+
+bool App::isOnTable() {
+  return ballFrame[3][1] < 2.0 && ballFrame[3][0] > -76.25 && ballFrame[3][0] < 76.25 &&
+          ballFrame[3][2] > -137 && ballFrame[3][2] < 137;
+}
+
+bool App::hitNet() {
+  return ballFrame[3][0] > -91.5 && ballFrame[3][0] < 91.5 && ballFrame[3][1] < 14.25 &&
+          ballFrame[3][2] > -2 && ballFrame[3][2] < 2;
+}
+
+bool App::hitPaddle() {
+  // bool hit = false;
+  // if(paddleVel[0] > 0){
+  //   return ballFrame[3][0] < paddleFrame[3][0]+8 && ballFrame[3][0] > lastPos[3][0]-8 &&
+  //       ballFrame[3][2] < paddleFrame[3][2] && ballFrame[3][2] > lastPos[3][2];
+  // } else {
+  //   return ballFrame[3][0] > paddleFrame[3][0]-8 && ballFrame[3][0] < lastPos[3][0]+8 &&
+  //       ballFrame[3][2] < paddleFrame[3][2] && ballFrame[3][2] > lastPos[3][2];
+  // }
+  return ballFrame[3][0] - 2 > paddleFrame[3][0] - 8 && ballFrame[3][0] + 2 < paddleFrame[3][0] + 8 &&
+          ballFrame[3][2] + 2 > lastPos[3][2] - 1 && ballFrame[3][2] + 2 > curPos[3][2] -1 && ballFrame[3][2] - 2 < paddleFrame[3][2] + 1;
 }
 
 void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
@@ -130,8 +169,12 @@ void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
         // Initialize the cylinders that make up the model. We're using unique_ptrs here so they automatically deallocate.
         paddle.reset(new Cylinder(vec3(0, 0, -0.5), vec3(0, 0, 0.5), 8.0, vec4(0.5, 0, 0, 1.0)));
         handle.reset(new Cylinder(vec3(0, -7.5, 0), vec3(0, -16, 0), 1.5, vec4(0.3, 0.4, 0, 1.0)));
+        paddleShadow.reset(new Cylinder(vec3(0, 0.2, 0), vec3(0, 0, 0), 8, vec4(0, 0, 0, 0.3)));
+
         table.reset(new Box(vec3(-76.25, -2, -137), vec3(76.25, 0, 137), vec4(0, 0.5, 0, 1.0)));
-        ball.reset(new Sphere(vec3(0.0, 0.0, 0.0), 2, vec4(1,1,1,1.0)));
+        //ball.reset(new Sphere(vec3(0.0, 0.0, 0.0), 2, vec4(1,1,1,1.0)));
+        ball.reset(new Sphere(vec3(0, 0, 0), 2, vec4(1,1,1,1.0)));
+        ballShadow.reset(new Cylinder(vec3(0, 0.2, 0), vec3(0, 0, 0), 2, vec4(0, 0, 0, 0.3)));
 
 
         // This is where you should generate new geometry so it is created once at the start of the program.
@@ -141,7 +184,7 @@ void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
     // rdt is the change in time (dt) in seconds since the last frame
     // So, you can slow down the simulation.
     double rdt = curFrameTime - lastTime;
-    rdt *= 0.25;
+    rdt *= 0.8;
 
     // Here are a few other values that you may find useful..
     // Radius of the ball = 2cm
@@ -150,12 +193,27 @@ void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
     // See the diagram in the assignment handout for the dimensions of the ping pong table
 
     // You should update the ball simulation here
-    ballFrame = glm::translate(ballFrame, ballVel);
+    ballFrame = glm::translate(ballFrame, ballVel * (float) rdt);
+    ballShadowFrame = glm::translate(ballShadowFrame, ballVel * (float) rdt);
+    ballShadowFrame[3][1] = 0;
 
-    if(ballFrame[3][1] < 2.0) {
-      ballVel = vec3(ballVel[0], -1 * ballVel[1], ballVel[2]);
+    if(isOnTable() && ballVel[1] < 0) {
+      ballVel = vec3(ballVel[0], -.96 * ballVel[1], ballVel[2]);
     } else {
-      ballVel = ballVel + vec3(0, -1 * g, 0);
+      ballVel = ballVel + vec3(0, -1 * g, 0) * (float) rdt;
+    }
+
+    if(hitNet()) {
+      if(ballVel[2] > 0) {
+        ballFrame[3][2] = -2;
+      } else {
+        ballFrame[3][2] = 2;
+      }
+      ballVel = vec3(0, 0, 0);
+    }
+
+    if(hitPaddle()) {
+      ballVel = vec3(ballVel[0]+ paddleVel[0]*4, ballVel[1], -ballVel[2] + paddleVel[2]*2);
     }
 }
 
@@ -189,9 +247,8 @@ void App::onRenderGraphicsScene(const VRGraphicsState &renderState) {
     _shader.setUniform("normal_mat", mat3(transpose(inverse(model))));
     _shader.setUniform("eye_world", eye_world);
 
-    // Draw the paddle using two cylinders
-    paddle->draw(_shader, paddleFrame);
-    handle->draw(_shader, paddleFrame);
+
+
     table->draw(_shader, model);
 
     // Draw the table
@@ -239,15 +296,25 @@ void App::onRenderGraphicsScene(const VRGraphicsState &renderState) {
     line.reset(new Line(vec3(-91.5, 15.25 - 1, 0), vec3(91.5, 15.25 - 1, 0), vec3(0,0,1), 0.5, vec4(1,1,1,1)));
     line->draw(_shader, model);
 
+
     // Draw the ball
+    ballShadow->draw(_shader,ballShadowFrame);
     if(ballFrame[3][1] < 2.0) {
         // draw the ball as if it's above the table if it's really inside of it
         float depth = 2.0 - ballFrame[3][1];
         mat4 drawBallFrame = glm::translate(ballFrame, vec3(0, depth, 0));
         ball->draw(_shader, drawBallFrame);
+
     } else {
         ball->draw(_shader, ballFrame);
+
     }
+    // Draw the paddle using two cylinders
+    paddle->draw(_shader, paddleFrame);
+    handle->draw(_shader, paddleFrame);
+    paddleShadow->draw(_shader,paddleShadowFrame);
+
+
 }
 
 void App::reloadShaders()

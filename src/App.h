@@ -60,6 +60,9 @@ protected:
     glm::vec3 getPaddlePosition() { return glm::column(paddleFrame, 3); }
     glm::vec3 getPaddleNormal() { return glm::vec3(0,0,-1); }
     glm::vec3 getPaddleVelocity() { return paddleVel; }
+    bool isOnTable();
+    bool hitNet();
+    bool hitPaddle();
 
     // The paddle is drawn with two cylinders
     std::unique_ptr<Cylinder> paddle;
@@ -68,11 +71,17 @@ protected:
     std::unique_ptr<Line> line;
     std::unique_ptr<Sphere> ball;
     std::unique_ptr<Line> tableLines;
+    std::unique_ptr<Cylinder> ballShadow;
+    std::unique_ptr<Cylinder> paddleShadow;
+
+
 
 
     // This 4x4 matrix stores position and rotation data for the paddle.
-    glm::mat4 paddleFrame;
+    glm::mat4 paddleFrame, lastPos , curPos;
     glm::mat4 ballFrame;
+    glm::mat4 ballShadowFrame;
+    glm::mat4 paddleShadowFrame;
 
     // This vector stores the paddle's current velocity.
     glm::vec3 paddleVel;
