@@ -22,9 +22,10 @@ using namespace glm;
 App::App(int argc, char** argv) : VRApp(argc, argv) {
     lastTime = VRSystem::getTime();
     ballVel = vec3(0.0, 0.0, 200);
-    ballFrame = glm::translate(mat4(1.0), vec3(0, 40, -130));
+    ballFrame = glm::translate(mat4(1.0), vec3(1000, 0, 0)); // start with the ball off screen!
     ballShadowFrame = ballFrame;
     ballShadowFrame[3][1] = 0;
+    lastPos = paddleFrame;
 }
 
 App::~App()
@@ -35,12 +36,8 @@ App::~App()
 void App::onAnalogChange(const VRAnalogEvent &event) {
     if (event.getName() == "FrameStart") {
         lastTime = curFrameTime;
-        lastPos = paddleFrame;
         curFrameTime = event.getValue();
-        curPos = paddleFrame;
-
     }
-
 }
 
 
@@ -56,21 +53,10 @@ void App::onButtonUp(const VRButtonEvent &event) {
     //std::cout<<event.getName()<<std::endl;
 
     if (event.getName() == "KbdSpace_Up") {
-
-      ballVel = vec3(0.0, 0.0, 200);
+      ballVel = vec3(0, 200, 400);
       ballFrame = glm::translate(mat4(1.0), vec3(0, 40, -130));
       ballShadowFrame = ballFrame;
       ballShadowFrame[3][1] = 0;
-
-
-
-
-        // This is where you can "serve" a new ball from the opponent's side of the net
-        // toward you when the spacebar is released. I found that a good initial position for the ball is: (0, 30, -130).
-        // And, a good initial velocity is (0, 200, 400).  As usual for this program, all
-        // units are in cm.
-
-
     }
 }
 
@@ -81,6 +67,7 @@ void App::onCursorMove(const VRCursorEvent &event) {
     //std::cout << "MouseMove: "<< event.getName() << " " << event.getPos()[0] << " " << event.getPos()[1] << std::endl;
 
     if (event.getName() == "Mouse_Move") {
+        lastPos = paddleFrame;
         vec2 mouseXY(event.getNormalizedPos()[0], event.getNormalizedPos()[1]);
 
 
@@ -106,9 +93,13 @@ void App::onCursorMove(const VRCursorEvent &event) {
     }
 }
 
+bool App::isOverTable() {
+  return ballFrame[3][0] > -76.25 && ballFrame[3][0] < 76.25 &&
+         ballFrame[3][2] > -137 && ballFrame[3][2] < 137;
+}
+
 bool App::isOnTable() {
-  return ballFrame[3][1] < 2.0 && ballFrame[3][0] > -76.25 && ballFrame[3][0] < 76.25 &&
-          ballFrame[3][2] > -137 && ballFrame[3][2] < 137;
+  return isOverTable() && ballFrame[3][1] < 2.0;
 }
 
 bool App::hitNet() {
@@ -117,16 +108,19 @@ bool App::hitNet() {
 }
 
 bool App::hitPaddle() {
-  // bool hit = false;
-  // if(paddleVel[0] > 0){
-  //   return ballFrame[3][0] < paddleFrame[3][0]+8 && ballFrame[3][0] > lastPos[3][0]-8 &&
-  //       ballFrame[3][2] < paddleFrame[3][2] && ballFrame[3][2] > lastPos[3][2];
-  // } else {
-  //   return ballFrame[3][0] > paddleFrame[3][0]-8 && ballFrame[3][0] < lastPos[3][0]+8 &&
-  //       ballFrame[3][2] < paddleFrame[3][2] && ballFrame[3][2] > lastPos[3][2];
-  // }
-  return ballFrame[3][0] - 2 > paddleFrame[3][0] - 8 && ballFrame[3][0] + 2 < paddleFrame[3][0] + 8 &&
-          ballFrame[3][2] + 2 > lastPos[3][2] - 1 && ballFrame[3][2] + 2 > curPos[3][2] -1 && ballFrame[3][2] - 2 < paddleFrame[3][2] + 1;
+  if(paddleVel[0] > 0){
+    return ballFrame[3][0] - 2 < paddleFrame[3][0]+8 && ballFrame[3][0] + 2 > lastPos[3][0]-8 &&
+        ballFrame[3][2] + 2 > paddleFrame[3][2] - 2.1 && ballFrame[3][2] - 2 < lastPos[3][2] + 2.1;
+  } else {
+    return ballFrame[3][0] - 2 < lastPos[3][0]+8 && ballFrame[3][0] + 2 > paddleFrame[3][0]-8 && 
+        ballFrame[3][2] + 2 > lastPos[3][2] - 2.1 && ballFrame[3][2] - 2 < paddleFrame[3][2] + 2.1;
+  }
+  
+  /*return ballVel[2] > 0 &&
+         ballFrame[3][0] - 2 > paddleFrame[3][0] - 8 && ballFrame[3][0] + 2 < paddleFrame[3][0] + 8 &&
+         ballFrame[3][1] > 0 &&
+         ballFrame[3][2] + 2 >= paddleFrame[3][2] - 1 && ballFrame[3][2] + 2 <= lastPos[3][2] + 1;// && ballFrame[3][2] <= paddleFrame[3][2] + 1;
+  */
 }
 
 void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
@@ -172,13 +166,8 @@ void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
         paddleShadow.reset(new Cylinder(vec3(0, 0.2, 0), vec3(0, 0, 0), 8, vec4(0, 0, 0, 0.3)));
 
         table.reset(new Box(vec3(-76.25, -2, -137), vec3(76.25, 0, 137), vec4(0, 0.5, 0, 1.0)));
-        //ball.reset(new Sphere(vec3(0.0, 0.0, 0.0), 2, vec4(1,1,1,1.0)));
         ball.reset(new Sphere(vec3(0, 0, 0), 2, vec4(1,1,1,1.0)));
         ballShadow.reset(new Cylinder(vec3(0, 0.2, 0), vec3(0, 0, 0), 2, vec4(0, 0, 0, 0.3)));
-
-
-        // This is where you should generate new geometry so it is created once at the start of the program.
-
     }
 
     // rdt is the change in time (dt) in seconds since the last frame
@@ -212,8 +201,9 @@ void App::onRenderGraphicsContext(const VRGraphicsState &renderState) {
       ballVel = vec3(0, 0, 0);
     }
 
-    if(hitPaddle()) {
-      ballVel = vec3(ballVel[0]+ paddleVel[0]*4, ballVel[1], -ballVel[2] + paddleVel[2]*2);
+    if(ballVel[2] > 0 && hitPaddle()) {
+      ballVel = vec3(ballVel[0]+ paddleVel[0]*16, ballVel[1], -0.6*ballVel[2] + paddleVel[2]*0.5);
+      ballFrame[3][2] = paddleFrame[3][2] - 2;
     }
 }
 
@@ -231,7 +221,7 @@ void App::onRenderGraphicsScene(const VRGraphicsState &renderState) {
     glm::mat4 view = glm::lookAt(eye_world, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
     //eye_world = glm::vec3(glm::column(glm::inverse(view), 3));
 
-    // Setup the projection matrix so that things are rendered in perspective
+    // Setup the projection matrix so that things are rendered in perspective 
     GLfloat windowHeight = renderState.index().getValue("WindowHeight");
     GLfloat windowWidth = renderState.index().getValue("WindowWidth");
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), windowWidth / windowHeight, 0.01f, 500.0f);
@@ -298,23 +288,25 @@ void App::onRenderGraphicsScene(const VRGraphicsState &renderState) {
 
 
     // Draw the ball
-    ballShadow->draw(_shader,ballShadowFrame);
-    if(ballFrame[3][1] < 2.0) {
-        // draw the ball as if it's above the table if it's really inside of it
-        float depth = 2.0 - ballFrame[3][1];
-        mat4 drawBallFrame = glm::translate(ballFrame, vec3(0, depth, 0));
-        ball->draw(_shader, drawBallFrame);
+    if(isOverTable()) {
+      ballShadow->draw(_shader,ballShadowFrame);
+      if(ballFrame[3][1] < 2.0) {
+          // draw the ball as if it's above the table if it's really inside of it
+          float depth = 2.0 - ballFrame[3][1];
+          mat4 drawBallFrame = glm::translate(ballFrame, vec3(0, depth, 0));
+          ball->draw(_shader, drawBallFrame);
 
+      } else {
+          ball->draw(_shader, ballFrame);
+      }
     } else {
-        ball->draw(_shader, ballFrame);
-
+      ball->draw(_shader, ballFrame);
     }
+
     // Draw the paddle using two cylinders
     paddle->draw(_shader, paddleFrame);
     handle->draw(_shader, paddleFrame);
     paddleShadow->draw(_shader,paddleShadowFrame);
-
-
 }
 
 void App::reloadShaders()
